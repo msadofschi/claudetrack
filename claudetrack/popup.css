@@ -47,6 +47,12 @@ body {
   gap: 8px;
 }
 
+.title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .logo {
   width: 22px;
   height: 22px;
@@ -64,6 +70,13 @@ body {
   font-weight: 600;
   color: var(--text-pri);
   letter-spacing: -0.01em;
+}
+
+.app-version {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .refresh-btn {

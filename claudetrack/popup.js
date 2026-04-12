@@ -9,6 +9,7 @@ const mainEl       = $('main');
 const noDataEl     = $('noData');
 const refreshBtn   = $('refreshBtn');
 const lastUpdated  = $('lastUpdated');
+const appVersionEl = $('appVersion');
 const openUsageBtn = $('openUsageBtn');
 const openUsagePage = $('openUsagePage');
 
@@ -132,6 +133,11 @@ function render(data) {
 // ── Load from storage ─────────────────────────────────────────────────────
 
 function loadData() {
+  const manifestVersion = chrome.runtime.getManifest?.().version;
+  if (appVersionEl && manifestVersion) {
+    appVersionEl.textContent = `v${manifestVersion}`;
+  }
+
   chrome.storage.local.get('claudeUsage', ({ claudeUsage }) => {
     render(claudeUsage || null);
   });
