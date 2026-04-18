@@ -146,7 +146,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 14px 0;
+  padding: 8px 14px;
 }
 
 .card {
@@ -277,7 +277,7 @@ body {
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 
 .footer {
-  padding: 8px 14px 12px;
+  padding: 0 14px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
