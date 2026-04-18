@@ -146,7 +146,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 14px 0;
+  padding: 8px 14px 0;
 }
 
 .card {
@@ -241,7 +241,7 @@ body {
 /* ── Pro teaser ──────────────────────────────────────────────────────────── */
 
 .pro-teaser {
-  margin: 8px 14px 2px;
+  margin: 0;
 }
 
 .pro-teaser-inner {
