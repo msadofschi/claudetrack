@@ -139,7 +139,7 @@ function render(data) {
   const sReset   = formatTimeUntil(session?.resetTime);
   const sStarted = sReset ? formatResetTime(session?.resetTime) : '';
   sessionReset.textContent = sReset
-    ? (sStarted ? `${sReset} · ${sStarted}` : sReset)
+    ? (sStarted ? `${sReset} (${sStarted})` : sReset)
     : (session?.label || 'Reset time unknown');
   sessionLabel.textContent = '';
 
@@ -157,7 +157,7 @@ function render(data) {
   const wReset = formatTimeUntil(weekly?.resetTime);
   const wDate  = wReset ? formatResetDate(weekly?.resetTime) : '';
   weeklyReset.textContent = wReset
-    ? (wDate ? `${wReset} · ${wDate}` : wReset)
+    ? (wDate ? `${wReset} (${wDate})` : wReset)
     : (weekly?.label || 'Reset day unknown');
   weeklyLabel.textContent = '';
 
