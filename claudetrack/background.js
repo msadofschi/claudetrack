@@ -173,13 +173,20 @@ function mapApiUsageToStoredShape(usage) {
       resetTime: parseApiTime(usage?.seven_day?.resets_at),
       label: usage?.seven_day?.resets_at ? null : 'Weekly limit',
     },
+    design: {
+      percentage: normalizePct(usage?.claude_design?.utilization),
+      resetTime: parseApiTime(usage?.claude_design?.resets_at),
+      label: usage?.claude_design?.resets_at ? null : 'Claude Design',
+    },
     meta: {
       ready: normalizePct(usage?.five_hour?.utilization) !== null,
       confidence: 'high',
       sessionSource: 'api',
       weeklySource: 'api',
+      designSource: 'api',
       foundSessionMarker: true,
       foundWeeklyMarker: true,
+      foundDesignMarker: true,
       textPercentageCount: 0,
     },
   };
@@ -221,6 +228,11 @@ function sanitizeUsageData(data) {
       percentage: normalizePct(data.weekly?.percentage),
       resetTime: data.weekly?.resetTime ?? null,
       label: data.weekly?.label ?? null,
+    },
+    design: {
+      percentage: normalizePct(data.design?.percentage),
+      resetTime: data.design?.resetTime ?? null,
+      label: data.design?.label ?? null,
     },
     meta: {
       ready: Boolean(data.meta?.ready),

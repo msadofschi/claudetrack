@@ -28,6 +28,13 @@ const weeklyBar   = $('weeklyBar');
 const weeklyReset = $('weeklyReset');
 const weeklyLabel = $('weeklyLabel');
 
+// Design
+const designCard  = $('designCard');
+const designPct   = $('designPct');
+const designBar   = $('designBar');
+const designReset = $('designReset');
+const designLabel = $('designLabel');
+
 // ── Plan management ───────────────────────────────────────────────────────
 
 function initPlan() {
@@ -114,8 +121,8 @@ function render(data) {
     return;
   }
 
-  const { session, weekly, lastUpdated: ts } = data;
-  const hasSomething = session?.percentage !== null || weekly?.percentage !== null;
+  const { session, weekly, design, lastUpdated: ts } = data;
+  const hasSomething = session?.percentage !== null || weekly?.percentage !== null || design?.percentage !== null;
 
   if (!hasSomething) {
     mainEl.style.display   = 'none';
@@ -161,6 +168,24 @@ function render(data) {
     ? (wDate ? `${wReset} (${wDate})` : wReset)
     : (weekly?.label || 'Reset day unknown');
   weeklyLabel.textContent = '';
+
+  // ── Design ───────────────────────────────────────────────────────────
+  const dPct = design?.percentage ?? null;
+  if (dPct !== null) {
+    designCard.style.display = 'block';
+    const p = Math.min(100, Math.max(0, Math.round(dPct)));
+    designPct.textContent = `${p}%`;
+    designBar.style.width = `${p}%`;
+    applyColor(designPct, designBar, dPct);
+    const dReset = formatTimeUntil(design?.resetTime);
+    const dDate  = dReset ? formatResetDate(design?.resetTime) : '';
+    designReset.textContent = dReset
+      ? (dDate ? `${dReset} (${dDate})` : dReset)
+      : (design?.label || 'Reset time unknown');
+    designLabel.textContent = '';
+  } else {
+    designCard.style.display = 'none';
+  }
 
   // ── Timestamp ────────────────────────────────────────────────────────
   lastUpdated.textContent = formatTimestamp(ts);

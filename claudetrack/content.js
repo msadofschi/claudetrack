@@ -30,6 +30,11 @@
     /\ball models\b/,
   ];
 
+  const DESIGN_PATTERNS = [
+    /\bclaude design\b/,
+    /\bdiseno de claude\b/,
+  ];
+
   const RESET_PATTERNS = /\b(reset|resets|renew|renews|refresh|refreshes|restablece|restablecen|reinicia|reinician)\b/;
 
   // ── Helpers ───────────────────────────────────────────────────────────
@@ -46,6 +51,7 @@
   function detectSection(text) {
     const normalized = normalizeText(text);
     if (!normalized) return null;
+    if (DESIGN_PATTERNS.some((pattern) => pattern.test(normalized))) return 'design';
     if (SESSION_PATTERNS.some((pattern) => pattern.test(normalized))) return 'session';
     if (WEEKLY_PATTERNS.some((pattern) => pattern.test(normalized))) return 'weekly';
     return null;
@@ -56,6 +62,7 @@
     return {
       session: SESSION_PATTERNS.some((pattern) => pattern.test(normalized)),
       weekly: WEEKLY_PATTERNS.some((pattern) => pattern.test(normalized)),
+      design: DESIGN_PATTERNS.some((pattern) => pattern.test(normalized)),
     };
   }
 
@@ -237,13 +244,16 @@
     const result = {
       session: { percentage: null, resetTime: null, label: null },
       weekly:  { percentage: null, resetTime: null, label: null },
+      design:  { percentage: null, resetTime: null, label: null },
       meta: {
         ready: false,
         confidence: 'low',
         sessionSource: null,
         weeklySource: null,
+        designSource: null,
         foundSessionMarker: false,
         foundWeeklyMarker: false,
+        foundDesignMarker: false,
         textPercentageCount: 0,
       },
     };
@@ -281,8 +291,10 @@
     const markers = hasSectionMarkers(bodyText);
     result.meta.foundSessionMarker = markers.session;
     result.meta.foundWeeklyMarker = markers.weekly;
+    result.meta.foundDesignMarker = markers.design;
     const sessionContainerData = parseSectionFromContainer('session');
     const weeklyContainerData  = parseSectionFromContainer('weekly');
+    const designContainerData  = parseSectionFromContainer('design');
 
     // ── 4. Match bar data to sections ─────────────────────────────────
     for (const bar of barData) {
@@ -293,6 +305,9 @@
       } else if (section === 'weekly' && result.weekly.percentage === null) {
         result.weekly.percentage = bar.pct;
         result.meta.weeklySource = 'bar';
+      } else if (section === 'design' && result.design.percentage === null) {
+        result.design.percentage = bar.pct;
+        result.meta.designSource = 'bar';
       }
     }
 
@@ -315,11 +330,20 @@
       if (result.weekly.label    === null) result.weekly.label     = weeklyContainerData.label;
     }
 
+    if (designContainerData) {
+      if (result.design.percentage === null && designContainerData.percentage !== null) {
+        result.design.percentage = designContainerData.percentage;
+        result.meta.designSource = 'container';
+      }
+      if (result.design.resetTime === null) result.design.resetTime = designContainerData.resetTime;
+      if (result.design.label    === null) result.design.label     = designContainerData.label;
+    }
+
     // ── 6. Text-scan fallback ──────────────────────────────────────────
     const pctLines = lines.filter(line => extractPct(line) !== null);
     result.meta.textPercentageCount = pctLines.length;
 
-    if (result.session.percentage === null || result.weekly.percentage === null) {
+    if (result.session.percentage === null || result.weekly.percentage === null || result.design.percentage === null) {
       for (const line of pctLines) {
         const pct     = extractPct(line);
         const section = detectSection(line);
@@ -329,6 +353,9 @@
         } else if (section === 'weekly' && result.weekly.percentage === null) {
           result.weekly.percentage = pct;
           result.meta.weeklySource = 'text';
+        } else if (section === 'design' && result.design.percentage === null) {
+          result.design.percentage = pct;
+          result.meta.designSource = 'text';
         }
       }
     }
@@ -344,7 +371,7 @@
       result.meta.confidence = 'medium';
     }
 
-    result.meta.ready = result.session.percentage !== null || result.weekly.percentage !== null;
+    result.meta.ready = result.session.percentage !== null || result.weekly.percentage !== null || result.design.percentage !== null;
 
     return result;
   }
