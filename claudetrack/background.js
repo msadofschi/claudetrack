@@ -174,9 +174,9 @@ function mapApiUsageToStoredShape(usage) {
       label: usage?.seven_day?.resets_at ? null : 'Weekly limit',
     },
     design: {
-      percentage: normalizePct(usage?.claude_design?.utilization),
-      resetTime: parseApiTime(usage?.claude_design?.resets_at),
-      label: usage?.claude_design?.resets_at ? null : 'Claude Design',
+      percentage: null,
+      resetTime: null,
+      label: null,
     },
     meta: {
       ready: normalizePct(usage?.five_hour?.utilization) !== null,
@@ -207,6 +207,11 @@ async function persistAndBadge(data) {
   const { claudeUsage: current } = await chrome.storage.local.get('claudeUsage');
   if (!shouldPersist(next, current)) {
     return false;
+  }
+
+  // Preserve design data from content.js when the API path has none
+  if (next.design?.percentage === null && current?.design?.percentage != null) {
+    next.design = { ...current.design };
   }
 
   next.lastUpdated = Date.now();
