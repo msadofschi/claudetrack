@@ -253,6 +253,32 @@
     };
   }
 
+  /**
+   * Scan body text lines to find design section data.
+   * Looks for a line matching DESIGN_PATTERNS then reads % and reset time
+   * from the next few lines. More reliable than container-based approach
+   * because it doesn't depend on DOM structure.
+   */
+  function parseDesignFromLines(lines) {
+    for (let i = 0; i < lines.length; i++) {
+      if (!DESIGN_PATTERNS.some(p => p.test(normalizeText(lines[i])))) continue;
+      let pct = null;
+      let resetTime = null;
+      for (let j = i; j < Math.min(i + 6, lines.length); j++) {
+        if (pct === null) {
+          const found = extractPct(lines[j]);
+          if (found !== null) pct = found;
+        }
+        if (resetTime === null && RESET_PATTERNS.test(normalizeText(lines[j]))) {
+          resetTime = parseResetTime(lines[j]);
+        }
+        if (pct !== null && resetTime !== null) break;
+      }
+      if (pct !== null) return { percentage: pct, resetTime, label: lines[i] };
+    }
+    return null;
+  }
+
   // ── Main parsing ─────────────────────────────────────────────────────
 
   function parseUsage() {
@@ -377,7 +403,17 @@
       }
     }
 
-    // ── 7. Confidence & readiness ──────────────────────────────────────
+    // ── 7. Design direct text scan (always overrides bar/container) ───
+    const designDirect = parseDesignFromLines(lines);
+    if (designDirect) {
+      result.design.percentage = designDirect.percentage;
+      result.design.resetTime  = designDirect.resetTime;
+      result.design.label      = designDirect.label;
+      result.meta.designSource      = 'text-direct';
+      result.meta.foundDesignMarker = true;
+    }
+
+    // ── 8. Confidence & readiness ──────────────────────────────────────
     const hasBoth   = result.session.percentage !== null && result.weekly.percentage !== null;
     const hasMarkers = result.meta.foundSessionMarker && result.meta.foundWeeklyMarker;
     const hasReset  = result.session.resetTime !== null || result.weekly.resetTime !== null;
