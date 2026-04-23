@@ -51,9 +51,9 @@
   function detectSection(text) {
     const normalized = normalizeText(text);
     if (!normalized) return null;
-    if (DESIGN_PATTERNS.some((pattern) => pattern.test(normalized))) return 'design';
     if (SESSION_PATTERNS.some((pattern) => pattern.test(normalized))) return 'session';
     if (WEEKLY_PATTERNS.some((pattern) => pattern.test(normalized))) return 'weekly';
+    if (DESIGN_PATTERNS.some((pattern) => pattern.test(normalized))) return 'design';
     return null;
   }
 
@@ -144,12 +144,27 @@
     }
 
     const dowEs = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+    const dowEsAbbrev = ['dom','lun','mar','mie','jue','vie','sab'];
     for (let i = 0; i < dowEs.length; i++) {
-      if (t.includes(dowEs[i])) {
-        const today = new Date().getDay();
-        let diff = i - today;
+      if (t.includes(dowEs[i]) || t.includes(dowEsAbbrev[i])) {
+        const today = new Date();
+        let diff = i - today.getDay();
         if (diff <= 0) diff += 7;
-        return now + diff * 86400000;
+        const target = new Date(today);
+        target.setDate(today.getDate() + diff);
+        // Try to parse an explicit time like "2:00 p.m." or "10:00 p.m."
+        const timeMatch = t.match(/(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/);
+        if (timeMatch) {
+          let h = parseInt(timeMatch[1]);
+          const m = parseInt(timeMatch[2]);
+          const ampm = timeMatch[3].replace(/\./g, '');
+          if (ampm === 'pm' && h !== 12) h += 12;
+          if (ampm === 'am' && h === 12) h = 0;
+          target.setHours(h, m, 0, 0);
+          return target.getTime();
+        }
+        target.setHours(0, 0, 0, 0);
+        return target.getTime();
       }
     }
 
