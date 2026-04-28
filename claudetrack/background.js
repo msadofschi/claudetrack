@@ -1,10 +1,9 @@
 // ─── ClaudeTrack — Background Service Worker ───────────────────────────────
-// Polls claude.ai/settings/usage every 5 minutes, parses usage data via a
-// content script, persists it to chrome.storage.local, and updates the badge.
+// Receives usage data from the content script (injected into settings/usage),
+// persists it to chrome.storage.local, and updates the badge.
 
-const API_BASE   = 'https://claude.ai/api';
 const ALARM_NAME = 'claudetrack-poll';
-const POLL_MIN   = 5;   // minutes between automatic refreshes
+const POLL_MIN   = 5;   // minutes between badge refreshes from cache
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -28,7 +27,7 @@ async function setupAlarm() {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
-    refreshUsage();
+    refreshBadge();
   }
 });
 
@@ -36,8 +35,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'REFRESH') {
-    refreshUsage().then((result) => sendResponse({ ok: true, ...result }));
-    return true;
+    sendResponse({ ok: true });
+    return false;
   }
   if (msg.type === 'SET_INTERVAL') {
     const minutes = msg.minutes;
@@ -56,126 +55,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// ── Core refresh logic ────────────────────────────────────────────────────
+// ── Badge refresh from cache ──────────────────────────────────────────────
 
-async function refreshUsage() {
-  const apiResult = await refreshUsageFromApi();
-  if (apiResult.refreshed) return { ...apiResult, source: 'api' };
-  return { refreshed: false, reason: 'api-fetch-failed' };
-}
-
-async function refreshUsageFromApi() {
-  try {
-    const orgId = await getClaudeOrgId();
-    if (!orgId) {
-      return { refreshed: false, reason: 'org-not-found' };
-    }
-
-    let usage;
-    try {
-      usage = await fetchClaudeJson(`${API_BASE}/organizations/${orgId}/usage`);
-    } catch (error) {
-      if (String(error?.message || '').startsWith('http-404')) {
-        await chrome.storage.local.remove('claudeOrgId');
-        const retriedOrgId = await getClaudeOrgId();
-        if (!retriedOrgId) throw error;
-        usage = await fetchClaudeJson(`${API_BASE}/organizations/${retriedOrgId}/usage`);
-      } else {
-        throw error;
-      }
-    }
-
-    const data = mapApiUsageToStoredShape(usage);
-    const stored = await persistAndBadge(data);
-    return {
-      refreshed: stored,
-      reason: stored ? undefined : 'api-data-rejected',
-    };
-  } catch (error) {
-    return { refreshed: false, reason: 'api-fetch-failed', error: String(error?.message || error) };
-  }
-}
-
-async function getClaudeOrgId() {
-  const { claudeOrgId } = await chrome.storage.local.get('claudeOrgId');
-  if (claudeOrgId) return claudeOrgId;
-
-  const organizations = await fetchClaudeJson(`${API_BASE}/organizations`);
-  const orgId = selectOrgId(organizations);
-  if (orgId) {
-    await chrome.storage.local.set({ claudeOrgId: orgId });
-  }
-  return orgId;
-}
-
-function selectOrgId(payload) {
-  if (Array.isArray(payload) && payload.length > 0) {
-    return payload[0]?.uuid || payload[0]?.organization_uuid || payload[0]?.id || null;
-  }
-
-  if (Array.isArray(payload?.organizations) && payload.organizations.length > 0) {
-    const org = payload.organizations[0];
-    return org?.uuid || org?.organization_uuid || org?.id || null;
-  }
-
-  return null;
-}
-
-async function fetchClaudeJson(url) {
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json, text/plain, */*',
-    },
-  });
-
-  if (response.status === 401 || response.status === 403) {
-    throw new Error(`auth-${response.status}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`http-${response.status}`);
-  }
-
-  return response.json();
-}
-
-function mapApiUsageToStoredShape(usage) {
-  return {
-    session: {
-      percentage: normalizePct(usage?.five_hour?.utilization),
-      resetTime: parseApiTime(usage?.five_hour?.resets_at),
-      label: usage?.five_hour?.resets_at ? null : 'Current session',
-    },
-    weekly: {
-      percentage: normalizePct(usage?.seven_day?.utilization),
-      resetTime: parseApiTime(usage?.seven_day?.resets_at),
-      label: usage?.seven_day?.resets_at ? null : 'Weekly limit',
-    },
-    design: {
-      percentage: normalizePct(usage?.seven_day_omelette?.utilization),
-      resetTime: parseApiTime(usage?.seven_day_omelette?.resets_at),
-      label: usage?.seven_day_omelette?.resets_at ? null : 'Not yet used',
-    },
-    meta: {
-      ready: normalizePct(usage?.five_hour?.utilization) !== null,
-      confidence: 'high',
-      sessionSource: 'api',
-      weeklySource: 'api',
-      designSource: 'api',
-      foundSessionMarker: true,
-      foundWeeklyMarker: true,
-      foundDesignMarker: true,
-      textPercentageCount: 0,
-    },
-  };
-}
-
-function parseApiTime(value) {
-  if (!value) return null;
-  const epoch = Date.parse(value);
-  return Number.isFinite(epoch) ? epoch : null;
+async function refreshBadge() {
+  const { claudeUsage } = await chrome.storage.local.get('claudeUsage');
+  if (claudeUsage) updateBadge(claudeUsage);
 }
 
 // ── Badge helpers ─────────────────────────────────────────────────────────
