@@ -9,12 +9,10 @@ const POLL_MIN   = 5;   // minutes between badge refreshes from cache
 
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm();
-  refreshUsage();   // fetch immediately on install/update
 });
 
 chrome.runtime.onStartup.addListener(() => {
   setupAlarm();
-  refreshUsage();
 });
 
 async function setupAlarm() {
@@ -31,12 +29,23 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// ── Tabs opened programmatically for refresh ──────────────────────────────
+
+const refreshTabs = new Set();
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  refreshTabs.delete(tabId);
+});
+
 // ── Manual refresh triggered from popup ──────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'REFRESH') {
-    sendResponse({ ok: true });
-    return false;
+    chrome.tabs.create({ url: 'https://claude.ai/settings/usage', active: false }, (tab) => {
+      refreshTabs.add(tab.id);
+      sendResponse({ ok: true });
+    });
+    return true;
   }
   if (msg.type === 'SET_INTERVAL') {
     const minutes = msg.minutes;
@@ -49,8 +58,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'USAGE_DATA') {
-    // Forwarded from the content script via tab messaging
-    persistAndBadge(msg.data).then((stored) => sendResponse({ ok: true, stored }));
+    const tabId = _sender.tab?.id;
+    persistAndBadge(msg.data).then((stored) => {
+      sendResponse({ ok: true, stored });
+      if (tabId && refreshTabs.has(tabId)) {
+        refreshTabs.delete(tabId);
+        chrome.tabs.remove(tabId);
+      }
+    });
     return true;
   }
 });
