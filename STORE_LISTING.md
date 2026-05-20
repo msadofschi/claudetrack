@@ -32,7 +32,7 @@ WHAT YOU SEE
 - Weekly usage (all models combined) with reset day/time
 - Claude Design usage (most trackers ignore this)
 - Toolbar badge: green under 50%, yellow 50 to 80%, red above 80%
-- Configurable auto-refresh: 5, 10, 15, 30, or 60 minutes
+- Configurable auto-refresh: 1, 2, 5, 10, or 60 minutes
 
 WHO IS THIS FOR
 Claude Pro, Max, and Team users who hit limits and want to plan their work. Especially useful for Claude Code users on Max plans and teams using Claude Design.

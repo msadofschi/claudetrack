@@ -6,6 +6,9 @@ const API_BASE   = 'https://claude.ai/api';
 const ALARM_NAME = 'claudetrack-poll';
 const POLL_MIN   = 5;   // minutes between automatic refreshes
 
+const ORG_ID_TTL_MS    = 24 * 60 * 60 * 1000; // re-validate cached orgId once a day
+const AUTH_BACKOFF_MAX = 6;                    // cap consecutive auth-failure skips
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -21,9 +24,10 @@ chrome.runtime.onStartup.addListener(() => {
 async function setupAlarm() {
   const { refreshInterval } = await chrome.storage.local.get('refreshInterval');
   const interval = refreshInterval || POLL_MIN;
-  chrome.alarms.get(ALARM_NAME, (alarm) => {
-    if (!alarm) chrome.alarms.create(ALARM_NAME, { periodInMinutes: interval });
-  });
+  const existing = await chrome.alarms.get(ALARM_NAME);
+  if (!existing || existing.periodInMinutes !== interval) {
+    chrome.alarms.create(ALARM_NAME, { periodInMinutes: interval });
+  }
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -59,9 +63,43 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // ── Core refresh logic ────────────────────────────────────────────────────
 
 async function refreshUsage() {
+  if (await shouldSkipForAuthBackoff()) {
+    return { refreshed: false, reason: 'auth-backoff' };
+  }
   const apiResult = await refreshUsageFromApi();
-  if (apiResult.refreshed) return { ...apiResult, source: 'api' };
-  return { refreshed: false, reason: 'api-fetch-failed' };
+  if (apiResult.refreshed) {
+    await clearAuthBackoff();
+    return { ...apiResult, source: 'api' };
+  }
+  if (apiResult.reason === 'auth-failed') {
+    await bumpAuthBackoff();
+  }
+  return { refreshed: false, reason: apiResult.reason || 'api-fetch-failed' };
+}
+
+async function shouldSkipForAuthBackoff() {
+  const { authBackoff } = await chrome.storage.local.get('authBackoff');
+  if (!authBackoff) return false;
+  // Skip 2^fails ticks (capped). With 5-min polls and AUTH_BACKOFF_MAX=6 that's up to ~5h.
+  const skipsRemaining = authBackoff.skipsRemaining ?? 0;
+  if (skipsRemaining > 0) {
+    await chrome.storage.local.set({
+      authBackoff: { ...authBackoff, skipsRemaining: skipsRemaining - 1 },
+    });
+    return true;
+  }
+  return false;
+}
+
+async function bumpAuthBackoff() {
+  const { authBackoff } = await chrome.storage.local.get('authBackoff');
+  const fails = Math.min((authBackoff?.fails ?? 0) + 1, AUTH_BACKOFF_MAX);
+  const skipsRemaining = Math.pow(2, fails) - 1; // 1, 3, 7, 15, 31, 63
+  await chrome.storage.local.set({ authBackoff: { fails, skipsRemaining } });
+}
+
+async function clearAuthBackoff() {
+  await chrome.storage.local.remove('authBackoff');
 }
 
 async function refreshUsageFromApi() {
@@ -76,7 +114,7 @@ async function refreshUsageFromApi() {
       usage = await fetchClaudeJson(`${API_BASE}/organizations/${orgId}/usage`);
     } catch (error) {
       if (String(error?.message || '').startsWith('http-404')) {
-        await chrome.storage.local.remove('claudeOrgId');
+        await chrome.storage.local.remove(['claudeOrgId', 'claudeOrgIdAt']);
         const retriedOrgId = await getClaudeOrgId();
         if (!retriedOrgId) throw error;
         usage = await fetchClaudeJson(`${API_BASE}/organizations/${retriedOrgId}/usage`);
@@ -92,18 +130,21 @@ async function refreshUsageFromApi() {
       reason: stored ? undefined : 'api-data-rejected',
     };
   } catch (error) {
-    return { refreshed: false, reason: 'api-fetch-failed', error: String(error?.message || error) };
+    const msg = String(error?.message || error);
+    const reason = msg.startsWith('auth-') ? 'auth-failed' : 'api-fetch-failed';
+    return { refreshed: false, reason, error: msg };
   }
 }
 
 async function getClaudeOrgId() {
-  const { claudeOrgId } = await chrome.storage.local.get('claudeOrgId');
-  if (claudeOrgId) return claudeOrgId;
+  const { claudeOrgId, claudeOrgIdAt } = await chrome.storage.local.get(['claudeOrgId', 'claudeOrgIdAt']);
+  const fresh = claudeOrgIdAt && (Date.now() - claudeOrgIdAt) < ORG_ID_TTL_MS;
+  if (claudeOrgId && fresh) return claudeOrgId;
 
   const organizations = await fetchClaudeJson(`${API_BASE}/organizations`);
   const orgId = selectOrgId(organizations);
   if (orgId) {
-    await chrome.storage.local.set({ claudeOrgId: orgId });
+    await chrome.storage.local.set({ claudeOrgId: orgId, claudeOrgIdAt: Date.now() });
   }
   return orgId;
 }
@@ -247,14 +288,12 @@ function shouldPersist(next, current) {
 
   const nextRank = confidenceRank(next.meta?.confidence);
   const currentRank = confidenceRank(current.meta?.confidence);
-  const nextSession = next.session?.percentage;
-  const currentSession = current.session?.percentage;
 
-  if (currentSession === null) return true;
   if (nextRank > currentRank) return true;
-  if (nextRank === currentRank) return true;
+  if (current.session?.percentage === null) return true;
 
-  const drop = currentSession - nextSession;
+  // Same or lower confidence: reject implausible drops (likely partial/stale parse).
+  const drop = current.session.percentage - next.session.percentage;
   if (drop >= 20) return false;
 
   return true;

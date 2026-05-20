@@ -215,24 +215,12 @@ function triggerRefresh() {
   refreshBtn.classList.add('spinning');
 
   chrome.runtime.sendMessage({ type: 'REFRESH' }, () => {
-    if (chrome.runtime.lastError) {
-      refreshInFlight = false;
-      refreshBtn.classList.remove('spinning');
-      return;
-    }
-
-    let waited = 0;
-    const poll = setInterval(() => {
-      waited += 500;
-      chrome.storage.local.get('claudeUsage', ({ claudeUsage }) => {
-        if (claudeUsage?.lastUpdated > (Date.now() - 10000) || waited >= 8000) {
-          clearInterval(poll);
-          refreshInFlight = false;
-          refreshBtn.classList.remove('spinning');
-          render(claudeUsage || null);
-        }
-      });
-    }, 500);
+    refreshInFlight = false;
+    refreshBtn.classList.remove('spinning');
+    // Background persists before responding; re-render from storage directly.
+    chrome.storage.local.get('claudeUsage', ({ claudeUsage }) => {
+      render(claudeUsage || null);
+    });
   });
 }
 

@@ -133,10 +133,23 @@
     const dow = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     for (let i = 0; i < dow.length; i++) {
       if (t.includes(dow[i])) {
-        const today = new Date().getDay();
-        let diff = i - today;
+        const today = new Date();
+        let diff = i - today.getDay();
         if (diff <= 0) diff += 7;
-        return now + diff * 86400000;
+        const target = new Date(today);
+        target.setDate(today.getDate() + diff);
+        const timeMatch = t.match(/(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/);
+        if (timeMatch) {
+          let h = parseInt(timeMatch[1]);
+          const m = parseInt(timeMatch[2]);
+          const ampm = timeMatch[3].replace(/\./g, '');
+          if (ampm === 'pm' && h !== 12) h += 12;
+          if (ampm === 'am' && h === 12) h = 0;
+          target.setHours(h, m, 0, 0);
+          return target.getTime();
+        }
+        target.setHours(0, 0, 0, 0);
+        return target.getTime();
       }
     }
 
