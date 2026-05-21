@@ -1,5 +1,7 @@
 # Chrome Web Store Listing — Claude Usage Monitor
 
+See also: [STORE_LISTING_FIREFOX.md](STORE_LISTING_FIREFOX.md) for the Firefox AMO submission.
+
 ## Extension name
 Claude Usage Monitor: Session, Weekly & Design
 

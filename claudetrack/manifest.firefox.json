@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Usage: Session, Weekly & Design",
+  "short_name": "Claude Usage",
+  "version": "1.3.12",
+  "description": "Track your Claude.ai usage in real time. See session and weekly limits, reset times, and color-coded progress — in your toolbar.",
+  "author": "Digital Advanced Solutions",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "claude-usage-monitor@digitaladvanced.solutions",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": [
+    "https://claude.ai/settings/usage*",
+    "https://claude.ai/api/organizations",
+    "https://claude.ai/api/organizations/*/usage"
+  ],
+  "homepage_url": "https://claude-monitor.netlify.app/",
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/settings/usage*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Claude Usage Monitor",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "32":  "icons/icon32.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16":  "icons/icon16.png",
+    "32":  "icons/icon32.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
