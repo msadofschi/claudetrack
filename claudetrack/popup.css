@@ -201,6 +201,14 @@ body {
 .card-pct.yellow { color: var(--yellow); }
 .card-pct.red    { color: var(--red); }
 
+.card-subtitle {
+  color: var(--text-dim);
+  font-size: 10.5px;
+  margin-top: -4px;
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+
 /* ── Progress bar ────────────────────────────────────────────────────────── */
 
 .progress-track {
