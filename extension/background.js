@@ -29,10 +29,17 @@ chrome.runtime.onInstalled.addListener((details) => {
 // the whole installed base at once instead of waiting for each user to age into
 // the time-based nudge. The version is recorded so the click can be attributed
 // to the release that surfaced it; a previous dismissal is never overridden.
+// Armed at most once per install: re-arming on every release made the banner
+// reappear for users who had not dismissed it yet, and the uninstall spike
+// after 1.12/1.13 (2026-08-02) points at exactly that.
 async function markWindowsPromoOnUpdate() {
-  const { winPromoDismissed } = await chrome.storage.local.get('winPromoDismissed');
-  if (winPromoDismissed) return;
-  await chrome.storage.local.set({ winPromoUpdate: chrome.runtime.getManifest().version });
+  const { winPromoDismissed, winPromoUpdateArmed } =
+    await chrome.storage.local.get(['winPromoDismissed', 'winPromoUpdateArmed']);
+  if (winPromoDismissed || winPromoUpdateArmed) return;
+  await chrome.storage.local.set({
+    winPromoUpdate: chrome.runtime.getManifest().version,
+    winPromoUpdateArmed: true,
+  });
 }
 
 // First-seen timestamp drives the popup's review nudge (~1 week after install).
