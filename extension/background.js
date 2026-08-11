@@ -22,8 +22,18 @@ chrome.runtime.onInstalled.addListener((details) => {
   setupAlarm();
   refreshUsage();   // fetch immediately on install/update
   markInstalledAt();
+  setUninstallFeedbackUrl();
   if (details?.reason === 'update') markWindowsPromoOnUpdate();
 });
+
+// One-question exit survey. Carries only the version and the browser family,
+// so the page can route the answer; no identifier, no usage data.
+function setUninstallFeedbackUrl() {
+  if (!chrome.runtime.setUninstallURL) return;
+  const version = chrome.runtime.getManifest().version;
+  const browser = navigator.userAgent.includes('Firefox') ? 'firefox' : 'chrome';
+  chrome.runtime.setUninstallURL(`https://claude-monitor.com/uninstall?v=${version}&b=${browser}`);
+}
 
 // One-shot flag for the Windows companion promo in the popup. An update reaches
 // the whole installed base at once instead of waiting for each user to age into
@@ -472,7 +482,7 @@ const NOTIF_DEFAULTS = { enabled: true, warnAt: 80, critAt: 95 };
 const NOTIF_BUCKETS = [
   ['session', 'Claude session'],
   ['weekly',  'Claude weekly limit'],
-  ['fable',   'Fable weekly cap'],
+  ['fable',   'Fable 5 weekly cap'],
   ['opus',    'Opus weekly cap'],
   ['sonnet',  'Sonnet weekly cap'],
   ['design',  'Claude Design weekly cap'],

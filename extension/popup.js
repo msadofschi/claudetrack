@@ -3,9 +3,11 @@
 const USAGE_URL   = 'https://claude.ai/settings/usage';
 const SIGN_IN_URL = 'https://claude.ai/login';
 
-// Review nudge: shown once the extension has been installed for a week and is
-// actually rendering data; a click or dismiss hides it forever.
-const REVIEW_NUDGE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+// Review nudge: shown once the popup has been opened with real data on three
+// distinct days; a click or dismiss hides it forever. The old 7-days-since-
+// install timer fired on the first open for anyone who came back late, which
+// asked for a review before the extension had proven itself.
+const REVIEW_NUDGE_MIN_DAYS = 3;
 const REVIEW_URL = navigator.userAgent.includes('Firefox')
   ? 'https://addons.mozilla.org/firefox/addon/claude-usage-meter/reviews/'
   : 'https://chromewebstore.google.com/detail/bfhdcfiigpaaopklllpobkheakpigbfo/reviews';
@@ -919,8 +921,8 @@ function loadData() {
   }
 
   chrome.storage.local.get(
-    ['claudeUsage', 'refreshInterval', 'authBackoff', 'cardPrefs', 'claudePlan', 'theme', 'layout', 'installedAt', 'reviewNudgeDismissed', 'usageHistory', 'showSparkline', 'winPromoDismissed', 'winPromoUpdate'],
-    ({ claudeUsage, refreshInterval, authBackoff, cardPrefs: storedPrefs, claudePlan, theme, layout, installedAt, reviewNudgeDismissed, usageHistory, showSparkline: sparkPref, winPromoDismissed, winPromoUpdate }) => {
+    ['claudeUsage', 'refreshInterval', 'authBackoff', 'cardPrefs', 'claudePlan', 'theme', 'layout', 'installedAt', 'reviewNudgeDismissed', 'reviewOpenDays', 'usageHistory', 'showSparkline', 'winPromoDismissed', 'winPromoUpdate'],
+    ({ claudeUsage, refreshInterval, authBackoff, cardPrefs: storedPrefs, claudePlan, theme, layout, installedAt, reviewNudgeDismissed, reviewOpenDays, usageHistory, showSparkline: sparkPref, winPromoDismissed, winPromoUpdate }) => {
       historySeries = Array.isArray(usageHistory) ? usageHistory : [];
       showSparkline = sparkPref !== false;   // absent means on
       renderSparkToggle();
@@ -935,7 +937,7 @@ function loadData() {
       if (intervalSelect) intervalSelect.value = String(refreshInterval || 5);
       render(claudeUsage || null);
       renderAuthState(authBackoff, claudeUsage?.lastUpdated);
-      renderReviewNudge(installedAt, reviewNudgeDismissed, Boolean(claudeUsage));
+      renderReviewNudge(trackReviewOpenDay(reviewOpenDays, Boolean(claudeUsage)), reviewNudgeDismissed, Boolean(claudeUsage));
       // After the review nudge: it decides whether there is room for this one.
       renderWinPromo(installedAt, winPromoDismissed, winPromoUpdate, Boolean(claudeUsage));
     }
@@ -944,9 +946,21 @@ function loadData() {
 
 // ── Review nudge ──────────────────────────────────────────────────────────
 
-function renderReviewNudge(installedAt, dismissed, hasData) {
+// Counts distinct calendar days on which the popup opened with data, at most
+// one tick per day. Returns the up-to-date count so render can use it directly.
+function trackReviewOpenDay(stored, hasData) {
+  const rec = stored && typeof stored === 'object' ? stored : { count: 0, last: null };
+  if (!hasData) return rec.count;
+  const today = new Date().toISOString().slice(0, 10);
+  if (rec.last === today) return rec.count;
+  const next = { count: rec.count + 1, last: today };
+  chrome.storage.local.set({ reviewOpenDays: next });
+  return next.count;
+}
+
+function renderReviewNudge(openDays, dismissed, hasData) {
   if (!reviewNudge) return;
-  const due = installedAt && (Date.now() - installedAt) >= REVIEW_NUDGE_AFTER_MS;
+  const due = openDays >= REVIEW_NUDGE_MIN_DAYS;
   reviewNudge.style.display = (!dismissed && due && hasData) ? 'flex' : 'none';
 }
 
