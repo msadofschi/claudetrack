@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Claude Usage Tracker: Fable 5 & Weekly Limits",
   "short_name": "Claude Usage",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "description": "The first tracker for Claude's Fable 5 weekly cap. Session & weekly limits, reset times, and 80%/95% alerts in your toolbar.",
   "author": "Digital Advanced Solutions",
   "browser_specific_settings": {

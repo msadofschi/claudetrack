@@ -177,12 +177,15 @@ async function refreshUsageFromApi() {
     // Routine budget is a separate, optional fetch — never let it break the
     // refresh. Null when unavailable (other plan, auth, beta changed) → card hides.
     data.routine = await fetchRoutineBudget(activeOrgId);
-    // Credits spend/limit: prefer overage_spend_limit, the same source claude.ai
-    // /usage uses for the "Usage credits" card. It keeps used/limit/reset even
-    // when usage.extra_usage goes null on suspension, so it mirrors /usage
-    // exactly; fall back to the extra_usage mapping when it's not offered.
+    // Credits spend/limit. usage.extra_usage is scoped to the signed-in member,
+    // while overage_spend_limit is the organization-wide limit — on Team/
+    // Enterprise accounts the second one is much larger than what the member
+    // sees in Claude. So use extra_usage for the numbers when it has them, and
+    // borrow the overage endpoint's reset/suspension fields, which extra_usage
+    // lacks. When extra_usage is null (suspended member) the overage payload is
+    // the only source left, so fall back to it whole.
     const overage = await fetchOverageSpendLimit(activeOrgId);
-    if (overage) data.extra = overage;
+    data.extra = mergeCreditSources(data.extra, overage);
     // Prepaid balance ("current balance"), shown next to the credits card.
     // Always fetched; fail-soft to null so it never breaks the refresh.
     data.prepaidBalance = await fetchPrepaidCredits(activeOrgId);
@@ -380,6 +383,20 @@ function mapExtraUsage(extra) {
     outOfCredits: usedCredits >= monthlyLimit,
     disabledReason: typeof extra.disabled_reason === 'string' ? extra.disabled_reason : null,
     source: 'extra_usage',
+  };
+}
+
+// Combine the member-scoped numbers (extra_usage) with the org-scoped payload
+// (overage_spend_limit), which is the only one carrying the reset timestamp and
+// the suspension flags. Numbers always win from extra_usage when present.
+function mergeCreditSources(extra, overage) {
+  if (!extra) return overage || null;
+  if (!overage) return extra;
+  return {
+    ...extra,
+    resetTime: overage.resetTime,
+    outOfCredits: overage.outOfCredits || extra.outOfCredits,
+    disabledReason: extra.disabledReason ?? overage.disabledReason,
   };
 }
 
